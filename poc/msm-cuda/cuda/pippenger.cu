@@ -17,7 +17,8 @@ typedef fr_t scalar_t;
 #include <msm/pippenger.cuh>
 
 #ifndef __CUDA_ARCH__
-extern "C"
+
+
 RustError mult_pippenger(point_t* out, const affine_t points[], size_t npoints,
                                        const scalar_t scalars[])
 {
