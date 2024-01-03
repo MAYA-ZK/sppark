@@ -117,3 +117,41 @@ pub fn multi_scalar_mult_fp2_arkworks<G: AffineCurve>(
 
     ret
 }
+
+#[cfg(any(feature = "bls12_381", feature = "bls12_377"))]
+pub fn transfer_points<G: AffineCurve>(
+    points: &[G]
+) {
+    #[cfg_attr(feature = "quiet", allow(improper_ctypes))]
+    extern "C" {
+        fn transfer_points_cuda(
+            points: *const G2Affine,
+            npoints: usize
+        );
+    };
+    let npoints = points.len();
+    unsafe {
+        transfer_points_cuda(
+            points.as_ptr() as *const _,
+            npoints
+        );
+    };
+}
+
+#[cfg(any(feature = "bls12_381", feature = "bls12_377"))]
+pub fn toy_fn(
+    npoints: usize
+) {
+    #[cfg_attr(feature = "quiet", allow(improper_ctypes))]
+    extern "C" {
+        fn mult_pippenger_toy(
+            npoints: usize
+        );
+    };
+    
+    unsafe {
+        mult_pippenger_toy(
+            npoints
+        )
+    };
+}
