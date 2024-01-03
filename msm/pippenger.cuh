@@ -8,9 +8,11 @@
 #include <cuda.h>
 #include <cooperative_groups.h>
 #include <cassert>
+#include "stdio.h"
 
 #include <util/vec2d_t.hpp>
 #include <util/slice_t.hpp>
+#include "util/logging.hpp"
 
 #include "sort.cuh"
 #include "batch_addition.cuh"
@@ -450,12 +452,14 @@ public:
                                    const scalar_t* scalars, bool mont = true,
                                    size_t ffi_affine_sz = sizeof(affine_t))
     {
+        DEBUG_PRINTF("pippenger.cuh:msm_t:invoke npoints=%d\n",npoints);
         assert(this->npoints == 0 || npoints <= this->npoints);
 
         uint32_t lg_npoints = lg2(npoints + npoints/2);
         size_t batch = 1 << (std::max(lg_npoints, wbits) - wbits);
         batch >>= 6;
         batch = batch ? batch : 1;
+        DEBUG_PRINTF("pippenger.cuh:msm_t:invoke batch=%d\n",batch);
         uint32_t stride = (npoints + batch - 1) / batch;
         stride = (stride+WARP_SZ-1) & ((size_t)0-WARP_SZ);
 
@@ -495,15 +499,18 @@ public:
             event_t ev;
 
             if (scalars)
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke scalars=%d\n",num);
                 gpu[2].HtoD(&d_scalars[d_off], &scalars[h_off], num);
             digits(&d_scalars[0], num, d_digits, d_temps, mont);
             gpu[2].record(ev);
 
             if (points)
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke points=%d\n",num);
                 gpu[0].HtoD(&d_points[d_off], &points[h_off],
                             num,              ffi_affine_sz);
 
             for (uint32_t i = 0; i < batch; i++) {
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke doing batch=%d\n",i);
                 gpu[i&1].wait(ev);
 
                 batch_addition<bucket_t><<<gpu.sm_count(), BATCH_ADD_BLOCK_SIZE,
@@ -711,7 +718,9 @@ RustError mult_pippenger(point_t *out, const affine_t points[], size_t npoints,
                                        size_t ffi_affine_sz = sizeof(affine_t))
 {
     try {
+        DEBUG_PRINTF("pippenger.cuh: size=%d*%d\n",npoints,ffi_affine_sz);
         msm_t<bucket_t, point_t, affine_t, scalar_t> msm{nullptr, npoints};
+        DEBUG_PRINTF("pippenger.cuh: mult_pippenger:msm.invoke\n");
         return msm.invoke(*out, slice_t<affine_t>{points, npoints},
                                 scalars, mont, ffi_affine_sz);
     } catch (const cuda_error& e) {
