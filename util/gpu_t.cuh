@@ -12,6 +12,7 @@
 #include "thread_pool_t.hpp"
 #include "exception.cuh"
 #include "slice_t.hpp"
+#include "logging.hpp"
 
 #ifndef WARP_SZ
 # define WARP_SZ 32
@@ -67,19 +68,25 @@ public:
 
     inline void* Dmalloc(size_t sz) const
     {   void *d_ptr;
+        DEBUG_PRINTF("gpu_t.cuh:Dmalloc:allocating %lld\n", sz);
         CUDA_OK(cudaMallocAsync(&d_ptr, sz, stream));
         return d_ptr;
     }
     inline void Dfree(void* d_ptr) const
-    {   CUDA_OK(cudaFreeAsync(d_ptr, stream));   }
+    {   
+        DEBUG_PRINTF("gpu_t.cuh: free memory\n");
+        CUDA_OK(cudaFreeAsync(d_ptr, stream));   
+    }
 
     template<typename T>
     inline void HtoD(T* dst, const void* src, size_t nelems,
                      size_t sz = sizeof(T)) const
-    {   if (sz == sizeof(T))
+    {   if (sz == sizeof(T)) {
+            DEBUG_PRINTF("gpu_t.cuh:HtoD: allocating %d\n", nelems*sz);
             CUDA_OK(cudaMemcpyAsync(dst, src, nelems*sizeof(T),
-                                    cudaMemcpyHostToDevice, stream));
+                                    cudaMemcpyHostToDevice, stream)); }
         else
+            DEBUG_PRINTF("gpu_t.cuh:HtoD: allocating %d\n", std::min(sizeof(T), sz)*nelems);
             CUDA_OK(cudaMemcpy2DAsync(dst, sizeof(T), src, sz,
                                       std::min(sizeof(T), sz), nelems,
                                       cudaMemcpyHostToDevice, stream));
