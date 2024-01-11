@@ -109,6 +109,14 @@ void testInv(scalar_t* scalars, size_t npoints) {
     };
 }
 
+__global__
+void testPoints(affine_t* points, size_t npoints) {
+    int tid = blockIdx.x*blockDim.x + threadIdx.x;
+    if (tid < npoints) {
+        fp_t s = fp_t::one() / points[tid].get_X();
+    }; 
+}
+
 extern "C"
 void mult_pippenger_toy(//point_t* out,
                                        size_t npoints
@@ -124,19 +132,32 @@ void mult_pippenger_toy(//point_t* out,
 
     scalar_t* d_scalars;
     size_t nBytes = npoints * sizeof(scalar_t);
+    DEBUG_PRINTF("pippenger_inf.cu:mult_pippenger_toy copying=%d bytes.\n", nBytes);
     cudaMalloc((scalar_t**)&d_scalars, nBytes);
     cudaMemcpy(d_scalars,(scalar_t *)points, nBytes, cudaMemcpyHostToDevice);
+
+    affine_t* d_points;
+    nBytes = npoints * sizeof(affine_t);
+    DEBUG_PRINTF("pippenger_inf.cu:mult_pippenger_toy copying=%d bytes.\n", nBytes);
+    cudaMalloc((affine_t**)&d_points, nBytes);
+    cudaMemcpy(d_points,(affine_t *)points, nBytes, cudaMemcpyHostToDevice);
+
     CHECK_LAST_CUDA_ERROR();
 
-    testInv<<<(npoints+255)/256, 256>>>(d_scalars, npoints);
+    testPoints<<<(npoints+255)/256, 256>>>(d_points, npoints);
+    cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
 
+    //testInv<<<(npoints+255)/256, 256>>>(d_scalars, npoints);
+    //CHECK_LAST_CUDA_ERROR();
+
+    // testing
     scalar_t s1 = scalars[0] - scalars[0];
     scalar_t s2 = scalars[1].reciprocal() * scalars[1];
     if (s1.is_zero() != 1) {
         cerr << "Error";
     };
-    if (s2.is_one() != 0) {
+    if (s2.is_one() != 1) {
         cerr << "Error";
     };
     //return mult_pippenger<bucket_t>(out, points, npoints, scalars, false, ffi_affine_sz);
