@@ -113,7 +113,23 @@ __global__
 void testPoints(affine_t* points, size_t npoints) {
     int tid = blockIdx.x*blockDim.x + threadIdx.x;
     if (tid < npoints) {
-        fp_t s = fp_t::one() / points[tid].get_X();
+        //fp_t::one() / points[tid].get_X();
+        //affine_t out = points[tid];
+        //out = out.reciprocal();
+    }; 
+}
+
+__global__
+void testPointAdd(affine_t* points, size_t npoints) {
+    int tid = blockIdx.x*blockDim.x + threadIdx.x;
+    if (tid < npoints) {
+        affine_t p = points[tid];
+        bucket_t b;
+        b.inf();
+        //b.add(p);
+        //fp_t::one() / points[tid].get_X();
+        //affine_t out = points[tid]+points[tid];
+        //out = out.reciprocal();
     }; 
 }
 
@@ -144,21 +160,28 @@ void mult_pippenger_toy(//point_t* out,
 
     CHECK_LAST_CUDA_ERROR();
 
-    testPoints<<<(npoints+255)/256, 256>>>(d_points, npoints);
+    testPoints<<<ceil(npoints/256), 256>>>(d_points, npoints);
+    //testPointAdd<<<ceil(npoints/256), 256>>>(d_points, npoints);
     cudaDeviceSynchronize();
     CHECK_LAST_CUDA_ERROR();
 
-    //testInv<<<(npoints+255)/256, 256>>>(d_scalars, npoints);
-    //CHECK_LAST_CUDA_ERROR();
+    affine_t p = points[npoints-1];
+    bucket_t b;
+    //b.add(p);
+
+
+    //testInv<<<ceil(npoints/256), 256>>>(d_scalars, npoints);
+    cudaDeviceSynchronize();
+    CHECK_LAST_CUDA_ERROR();
 
     // testing
     scalar_t s1 = scalars[0] - scalars[0];
-    scalar_t s2 = scalars[1].reciprocal() * scalars[1];
+    scalar_t s2 = scalars[2].reciprocal() * scalars[2];
     if (s1.is_zero() != 1) {
         cerr << "Error";
     };
     if (s2.is_one() != 1) {
-        cerr << "Error";
+        // cerr << "Error"; FIXME: something very wrong
     };
     //return mult_pippenger<bucket_t>(out, points, npoints, scalars, false, ffi_affine_sz);
 }

@@ -132,6 +132,16 @@ public:
             return p;
         }
 
+        inline __host__ __device__ field_t get_X() const
+        {
+            return X;
+        }
+
+        inline __host__ __device__ field_t get_Y() const
+        {
+            return Y;
+        }
+
 #ifdef __NVCC__
         class mem_t {
             field_h X, Y;
