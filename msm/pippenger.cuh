@@ -492,6 +492,7 @@ public:
                                           : this->d_scalars;
             affine_h* d_points = points ? (affine_h*)&d_temp[temp_sz + digits_sz]
                                         : this->d_points;
+            DEBUG_PRINTF("temp_sz=%d,digits_sz=%d",temp_sz,digits_sz);
 
             size_t d_off = 0;   // device offset
             size_t h_off = 0;   // host offset
@@ -505,7 +506,7 @@ public:
             gpu[2].record(ev);
 
             if (points)
-                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke points=%d\n",num);
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke points=%d offset=%d_off\n",num);
                 gpu[0].HtoD(&d_points[d_off], &points[h_off],
                             num,              ffi_affine_sz);
 
