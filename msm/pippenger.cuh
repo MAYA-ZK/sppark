@@ -506,12 +506,12 @@ public:
             gpu[2].record(ev);
 
             if (points)
-                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke points=%d offset=%d_off\n",num);
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke points=%d\n",num);
                 gpu[0].HtoD(&d_points[d_off], &points[h_off],
                             num,              ffi_affine_sz);
 
             for (uint32_t i = 0; i < batch; i++) {
-                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke doing batch=%d\n",i);
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke doing batch=%d offset=%d\n",i,d_off);
                 gpu[i&1].wait(ev);
 
                 batch_addition<bucket_t><<<gpu.sm_count(), BATCH_ADD_BLOCK_SIZE,
