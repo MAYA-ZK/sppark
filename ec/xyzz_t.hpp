@@ -142,6 +142,11 @@ public:
             return Y;
         }
 
+        inline __host__ __device__ bool is_inf() 
+        {
+            return inf;
+        }
+
 #ifdef __NVCC__
         class mem_t {
             field_h X, Y;
