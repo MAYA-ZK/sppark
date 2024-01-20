@@ -523,7 +523,7 @@ public:
 
                 DEBUG_PRINTF("pippenger.cuh:msm_t:invoke validating on host points=%s size=%d\n", typeid(points_[0]).name(), sizeof(points_[0]));
                 for (int i=0; i<100; i++) {
-                    affine_t q = points_[0];
+                    affine_t q = points_[i];
                     decltype( q.get_X() ) x = q.get_X(); // fp_t, eliminate fp2_t from declarations to make it explicit
                     decltype( q.get_X() ) y = q.get_Y();
                     decltype( q.get_X() ) one = decltype( q.get_X() )::one();
