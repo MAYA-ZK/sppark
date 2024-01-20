@@ -16,6 +16,8 @@
 
 #include "sort.cuh"
 #include "batch_addition.cuh"
+#include "extras.cuh"
+#include <typeinfo>
 
 #ifndef WARP_SZ
 # define WARP_SZ 32
@@ -378,6 +380,8 @@ public:
         d_buckets = reinterpret_cast<decltype(d_buckets)>(gpu.Dmalloc(d_blob_sz));
         d_hist = vec2d_t<uint32_t>(&d_buckets[d_buckets_sz], row_sz);
         if (points) {
+            assert(1==0);
+            DEBUG_PRINTF("pippenger.cuh:msm_t:init casting=%d\n",d_hist[nwins]);
             d_points = reinterpret_cast<decltype(d_points)>(d_hist[nwins]);
             gpu.HtoD(d_points, points, np, ffi_affine_sz);
             npoints = np;
@@ -452,16 +456,16 @@ public:
                                    const scalar_t* scalars, bool mont = true,
                                    size_t ffi_affine_sz = sizeof(affine_t))
     {
-        DEBUG_PRINTF("pippenger.cuh:msm_t:invoke npoints=%d\n",npoints);
+        DEBUG_PRINTF("pippenger.cuh:msm_t:invoke npoints=%ld\n",npoints);
         assert(this->npoints == 0 || npoints <= this->npoints);
 
         uint32_t lg_npoints = lg2(npoints + npoints/2);
         size_t batch = 1 << (std::max(lg_npoints, wbits) - wbits);
         batch >>= 6;
         batch = batch ? batch : 1;
-        DEBUG_PRINTF("pippenger.cuh:msm_t:invoke batch=%d\n",batch);
+        DEBUG_PRINTF("pippenger.cuh:msm_t:invoke batch=%ld\n",batch);
         uint32_t stride = (npoints + batch - 1) / batch;
-        stride = (stride+WARP_SZ-1) & ((size_t)0-WARP_SZ);
+        stride = (stride+WARP_SZ-1) & ((size_t)0-WARP_SZ); // this is the batch size
 
         std::vector<result_t> res(nwins);
         std::vector<bucket_t> ones(gpu.sm_count() * BATCH_ADD_BLOCK_SIZE / WARP_SZ);
@@ -470,6 +474,7 @@ public:
         point_t p;
 
         try {
+
             // |scalars| being nullptr means the scalars are pre-loaded to
             // |d_scalars|, otherwise allocate stride.
             size_t temp_sz = scalars ? sizeof(scalar_t) : 0;
@@ -480,6 +485,8 @@ public:
             const char* points = reinterpret_cast<const char*>(points_);
             size_t d_point_sz = points ? (batch > 1 ? 2*stride : stride) : 0;
             d_point_sz *= sizeof(affine_h);
+
+            DEBUG_PRINTF("pippenger.cuh:msm_t:invoke points size %d\n", sizeof(affine_h));
 
             size_t digits_sz = nwins * stride * sizeof(uint32_t);
 
@@ -492,7 +499,7 @@ public:
                                           : this->d_scalars;
             affine_h* d_points = points ? (affine_h*)&d_temp[temp_sz + digits_sz]
                                         : this->d_points;
-            DEBUG_PRINTF("temp_sz=%d,digits_sz=%d",temp_sz,digits_sz);
+            DEBUG_PRINTF("temp_sz=%ld,digits_sz=%ld",temp_sz,digits_sz);
 
             size_t d_off = 0;   // device offset
             size_t h_off = 0;   // host offset
@@ -500,19 +507,47 @@ public:
             event_t ev;
 
             if (scalars)
-                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke scalars=%d\n",num);
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke scalars=%ld\n",num);
                 gpu[2].HtoD(&d_scalars[d_off], &scalars[h_off], num);
             digits(&d_scalars[0], num, d_digits, d_temps, mont);
             gpu[2].record(ev);
 
             if (points)
-                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke points=%d\n",num);
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke transfer points=%ld\n",num);
                 gpu[0].HtoD(&d_points[d_off], &points[h_off],
                             num,              ffi_affine_sz);
 
             for (uint32_t i = 0; i < batch; i++) {
-                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke doing batch=%d offset=%d\n",i,d_off);
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke doing batch=%d offset=%ld\n",i,d_off);
                 gpu[i&1].wait(ev);
+
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke validating on host points=%s size=%d\n", typeid(points_[0]).name(), sizeof(points_[0]));
+                for (int i=0; i<100; i++) {
+                    affine_t q = points_[0];
+                    decltype( q.get_X() ) x = q.get_X(); // fp_t, eliminate fp2_t from declarations to make it explicit
+                    decltype( q.get_X() ) y = q.get_Y();
+                    decltype( q.get_X() ) one = decltype( q.get_X() )::one();
+                    decltype( q.get_X() ) r = y*y - x*x*x - (one+one+one+one);
+                    assert( r.is_zero() );
+                };
+
+                DEBUG_PRINTF("pippenger.cuh:msm_t:invoke validating curve on GPU...\n");
+                printf("pippenger.cuh:msm_t:invoke points=%s\n",typeid(d_points[d_off]).name());
+                printf("pippenger.cuh:msm_t:invoke field=%s\n",typeid(d_points[d_off].get_X()).name());
+                //affine_h p = d_points[d_off];
+                // affine_h p = d_points[d_off];
+                //assert( (p.get_X()-p.get_X()).is_zero() );
+                    //fp_t::mem_t y = p.get_Y();
+                    //fp_t::mem_t one = fp_t::one();
+                    //fp_t::mem_t r = y*y-x*x*x-(one+one+one+one);
+                    //assert( r.is_zero() );
+                testOnCurve<bucket_t><<<num/256, 256>>>(
+                    &d_points[d_off], num
+                );
+                cudaDeviceSynchronize();
+                CUDA_OK(cudaGetLastError());
+
+                //writeData(points, num);
 
                 batch_addition<bucket_t><<<gpu.sm_count(), BATCH_ADD_BLOCK_SIZE,
                                            0, gpu[i&1]>>>(
@@ -719,7 +754,7 @@ RustError mult_pippenger(point_t *out, const affine_t points[], size_t npoints,
                                        size_t ffi_affine_sz = sizeof(affine_t))
 {
     try {
-        DEBUG_PRINTF("pippenger.cuh: size=%d*%d\n",npoints,ffi_affine_sz);
+        DEBUG_PRINTF("pippenger.cuh: start size=%d*%d\n",npoints,ffi_affine_sz);
         msm_t<bucket_t, point_t, affine_t, scalar_t> msm{nullptr, npoints};
         DEBUG_PRINTF("pippenger.cuh: mult_pippenger:msm.invoke\n");
         return msm.invoke(*out, slice_t<affine_t>{points, npoints},
