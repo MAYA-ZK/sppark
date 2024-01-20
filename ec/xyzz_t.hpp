@@ -64,6 +64,16 @@ public:
         affine_t(const field_t& x, const field_t& y) : X(x), Y(y) {}
         inline __host__ __device__ affine_t() {}
 
+        inline __device__ field_t get_X() const
+        {
+            return X;
+        }
+
+        inline __host__ __device__ field_t get_Y() const
+        {
+            return Y;
+        }
+
 #ifdef __CUDA_ARCH__
         inline __device__ bool is_inf() const
         {   return (bool)(X.is_zero(Y));   }
@@ -110,6 +120,7 @@ public:
                 return p;
             }
         };
+
 #else
         using mem_t = affine_t;
 #endif
@@ -179,6 +190,15 @@ public:
                 p.Y = czero((field_t)Y, inf);
                 p.inf = inf;
                 return p;
+            }
+
+            // NOTE: needed to make it work in device!
+            inline __device__ field_h get_X() {
+                return X;
+            }
+
+            inline __device__ field_h get_Y() {
+                return Y;
             }
         };
 #else
